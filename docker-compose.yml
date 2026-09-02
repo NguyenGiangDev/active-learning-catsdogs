@@ -1,0 +1,50 @@
+# docker-compose.yml
+# Hai service: FastAPI classifier + Label Studio để gán nhãn ảnh bất định.
+#
+# Cách dùng:
+#   docker compose pull && docker compose up -d
+#   - API:          http://localhost:8000
+#   - Label Studio: http://localhost:8080
+#
+# Lưu ý: service api dùng image từ Docker Hub (nguyengiangdevops/catdog-classifier:latest)
+# CI/CD sẽ tự push image mới sau mỗi lần build thành công.
+#
+# Lưu ý: Cả hai service đều mount ./data vào container,
+# nên Label Studio có thể đọc ảnh từ data/low_confidence/.
+
+services:
+  api:
+    image: nguyengiangdevops/catdog-classifier:latest
+    container_name: catdog-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount data để ảnh low_confidence được ghi vào host
+      - ./data:/app/data
+      # Mount models để có thể swap model mà không rebuild image
+      - ./models:/app/models
+    environment:
+      - LOW_CONFIDENCE_DIR=/app/data/low_confidence
+      - CONFIDENCE_THRESHOLD=0.80
+    restart: unless-stopped
+    depends_on: []   # label-studio không phải dependency cứng của API
+
+  label-studio:
+    image: heartexlabs/label-studio:latest
+    container_name: catdog-label-studio
+    ports:
+      - "8080:8080"
+    volumes:
+      # Chia sẻ thư mục data với service api
+      - ./data:/label-studio/data
+      # Persist Label Studio database & cấu hình giữa các lần restart
+      - label-studio-db:/label-studio/db
+    environment:
+      # Tắt auth khi chạy local (tiện cho demo cá nhân)
+      # Bật lại bằng cách bỏ dòng này khi deploy lên server thật
+      - LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true
+      - LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=/label-studio/data
+    restart: unless-stopped
+
+volumes:
+  label-studio-db:

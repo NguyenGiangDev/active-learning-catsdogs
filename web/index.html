@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CatDog AI — Phân loại Mèo & Chó</title>
+  <meta name="description" content="Ứng dụng AI phân loại ảnh Mèo và Chó theo thời gian thực, sử dụng MobileNetV2 Transfer Learning." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Background blobs -->
+  <div class="bg-blob blob-1"></div>
+  <div class="bg-blob blob-2"></div>
+
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">🐾</span>
+        <span class="logo-text">CatDog <span class="gradient-text">AI</span></span>
+      </div>
+      <div id="status-badge" class="status-badge status-connecting">
+        <span class="status-dot"></span>
+        <span id="status-label">Đang kết nối...</span>
+      </div>
+    </header>
+
+    <!-- Main Card -->
+    <main class="main-card">
+      <h1 class="main-title">Phân loại Mèo &amp; Chó</h1>
+      <p class="main-subtitle">Tải lên một bức ảnh bất kỳ, AI sẽ nhận diện ngay lập tức.</p>
+
+      <!-- Upload Zone -->
+      <div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-label="Vùng kéo thả ảnh">
+        <div id="upload-hint" class="upload-hint">
+          <div class="upload-icon">📷</div>
+          <p class="upload-text">Kéo thả ảnh vào đây</p>
+          <p class="upload-subtext">hoặc</p>
+          <label for="file-input" class="upload-btn">Chọn ảnh từ máy</label>
+          <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp" hidden />
+          <p class="upload-formats">Hỗ trợ: JPG, PNG, WEBP · Tối đa 10MB</p>
+        </div>
+        <div id="preview-container" class="preview-container hidden">
+          <img id="preview-img" src="" alt="Ảnh xem trước" class="preview-img" />
+          <button id="clear-btn" class="clear-btn" aria-label="Xóa ảnh">✕</button>
+        </div>
+      </div>
+
+      <!-- Predict Button -->
+      <button id="predict-btn" class="predict-btn" disabled>
+        <span id="btn-text">Chọn ảnh để phân loại</span>
+        <span id="btn-spinner" class="spinner hidden"></span>
+      </button>
+
+      <!-- Result Card -->
+      <div id="result-card" class="result-card hidden">
+        <div class="result-header">
+          <span id="result-emoji" class="result-emoji"></span>
+          <div>
+            <p class="result-label-text">Kết quả</p>
+            <h2 id="result-label" class="result-label"></h2>
+          </div>
+          <div id="uncertain-badge" class="uncertain-badge hidden">
+            <span>⚠️ Cần xem xét</span>
+          </div>
+        </div>
+
+        <!-- Confidence Bar -->
+        <div class="confidence-section">
+          <div class="confidence-labels">
+            <span>Độ tự tin</span>
+            <span id="confidence-value" class="confidence-value"></span>
+          </div>
+          <div class="confidence-track">
+            <div id="confidence-bar" class="confidence-bar"></div>
+          </div>
+        </div>
+
+        <!-- Detail Badges -->
+        <div class="detail-row">
+          <div id="saved-badge" class="detail-badge hidden">
+            <span class="badge-icon">💾</span>
+            <span>Đã lưu để train lại</span>
+          </div>
+          <div id="certain-badge" class="detail-badge badge-green">
+            <span class="badge-icon">✅</span>
+            <span>Đủ tự tin</span>
+          </div>
+        </div>
+
+        <!-- Try Again -->
+        <button id="retry-btn" class="retry-btn">Thử ảnh khác</button>
+      </div>
+
+      <!-- Error Card -->
+      <div id="error-card" class="error-card hidden">
+        <span class="error-icon">❌</span>
+        <p id="error-msg" class="error-msg"></p>
+        <button id="error-retry-btn" class="retry-btn">Thử lại</button>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Powered by <strong>MobileNetV2</strong> · FastAPI · Transfer Learning · <a href="http://localhost:8000/docs" target="_blank">API Docs</a></p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

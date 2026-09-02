@@ -1,0 +1,171 @@
+# .github/workflows/cicd.yml
+# CI/CD/CT pipeline cho dự án Active Learning Cats vs Dogs
+#
+# Jobs:
+#   1. test          — chạy pytest khi push / PR
+#   2. build-and-push — build Docker image và push lên Docker Hub (sau khi test pass)
+#   3. retrain       — kích hoạt thủ công (workflow_dispatch) hoặc từ webhook
+#                      Ghi chú: Dùng workflow_dispatch cho demo cá nhân.
+#                      Có thể chuyển trigger sang repository_dispatch khi
+#                      Label Studio webhook đã được cấu hình thật.
+
+name: MLOPS pipeline
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      retrain_only:
+        description: "Chỉ chạy job retrain (bỏ qua test/build)?"
+        required: false
+        default: "false"
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────
+  # Job 1: Test
+  # ─────────────────────────────────────────────────────────────────
+  test:
+    name: Run pytest
+    runs-on: self-hosted
+    # Bỏ qua job này nếu trigger là dispatch thuần (retrain_only=true)
+    if: ${{ github.event.inputs.retrain_only != 'true' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+
+  # ─────────────────────────────────────────────────────────────────
+  # Job 2: Build & Push Docker image
+  # ─────────────────────────────────────────────────────────────────
+  build-and-push:
+    name: Build & Push Docker image
+    runs-on: ubuntu-latest
+    needs: test
+    # Chỉ chạy khi push vào main (không chạy khi PR hoặc retrain_only)
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      github.event.inputs.retrain_only != 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          # Nhớ thêm DOCKERHUB_USERNAME và DOCKERHUB_TOKEN vào
+          # Settings → Secrets and variables → Actions trong repo của bạn.
+          # Không bao giờ hardcode credentials vào file này.
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/catdog-classifier:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/catdog-classifier:${{ github.sha }}
+          # ── Docker build cache ──────────────────────────────────────────
+          # Lưu cache layer vào Docker Hub dưới dạng image riêng
+          # (username/catdog-classifier:cache)
+          #
+          # Ưu điểm:
+          #   - Bao giờ CI nào có Docker credentials cũng truy cập được
+          #   - Không bị lock-in vào GitHub Actions Cache (giới hạn 10GB)
+          #
+          # Migrate sang S3 sau này: chỉ cần đổi 2 dòng dưới thành:
+          #   cache-from: type=s3,bucket=my-bucket,region=ap-southeast-1,prefix=buildcache/
+          #   cache-to:   type=s3,bucket=my-bucket,region=ap-southeast-1,prefix=buildcache/,mode=max
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/catdog-classifier:cache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/catdog-classifier:cache,mode=max
+
+  # ─────────────────────────────────────────────────────────────────
+  # Job 3: Retrain
+  # Trigger thủ công qua nút "Run workflow" trên GitHub UI,
+  # hoặc khi workflow_dispatch được gọi từ script.
+  #
+  # Để tự động hóa từ Label Studio webhook:
+  #   - Đổi trigger thành repository_dispatch
+  #   - Cấu hình Label Studio gửi POST đến GitHub API
+  #   - Xem: https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event
+  # ─────────────────────────────────────────────────────────────────
+  retrain:
+    name: Retrain model
+    runs-on: ubuntu-latest
+    # Chạy khi: dispatch thủ công HOẶC retrain_only=true
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        # pip cache được lưu bởi actions/setup-python (cache: pip ở trên)
+        # Lần chạy sau sẽ hit cache, không tải lại torch từ PyPI
+        run: pip install -r requirements.txt
+
+      - name: Pull data từ DVC remote
+        run: |
+          # Cấu hình DVC remote credentials nếu cần (ví dụ S3)
+          # dvc remote modify myremote access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+          # Với local remote trong demo cá nhân, bước này có thể bỏ qua.
+          echo "[retrain] Bỏ qua dvc pull với local remote (demo mode)"
+
+      - name: Chạy retrain
+        run: python train/train.py --data-dir data/raw --epochs 5
+
+      - name: Commit model mới vào DVC
+        run: |
+          # Ghi chú: Trong CI thật, dùng DVC remote S3/GCS.
+          # Với demo local remote, bước này chỉ in thông báo.
+          echo "[retrain] dvc add models && dvc push (bỏ qua trong demo)"
+
+  # ─────────────────────────────────────────────────────────────────
+  # Job 4: Deploy
+  # Chạy tự động sau khi build-and-push thành công (push vào main).
+  # Yêu cầu: self-hosted runner đang chạy trên máy WSL local.
+  #
+  # Cách cài self-hosted runner:
+  #   GitHub repo → Settings → Actions → Runners → New self-hosted runner
+  #   Chọn Linux → chạy các lệnh cài đặt trên WSL
+  # ─────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy (self-hosted WSL)
+    runs-on: self-hosted
+    needs: [build-and-push]
+    # Chỉ deploy khi push vào main (không chạy khi PR)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull image mới từ Docker Hub
+        run: docker pull nguyengiangdevops/catdog-classifier:latest
+
+      - name: Restart containers với image mới
+        # --no-build: không build lại, dùng image vừa pull
+        # --force-recreate: đảm bảo container dùng image mới nhất
+        run: docker compose up -d --no-build --force-recreate api

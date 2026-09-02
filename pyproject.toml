@@ -1,0 +1,21 @@
+# pyproject.toml
+# Metadata dự án — dùng cho tooling hiện đại
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "active-learning-catsdogs"
+version = "0.1.0"
+description = "MLOps demo: Active Learning pipeline phân loại Chó/Mèo"
+requires-python = ">=3.10"
+readme = "README.md"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
