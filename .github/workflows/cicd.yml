@@ -162,9 +162,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Pull image mới từ Docker Hub
+      - name: Pull image catdog-classifier
         run: docker pull nguyengiangdevops/catdog-classifier:latest
-
+      
+      - name: Pull image label-studio
+        run: docker pull heartexlabs/label-studio:latest
       - name: Restart containers với image mới
         # --no-build: không build lại, dùng image vừa pull
         # --force-recreate: đảm bảo container dùng image mới nhất
