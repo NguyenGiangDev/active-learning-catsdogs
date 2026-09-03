@@ -39,10 +39,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"
+          # Không dùng cache: "pip" trên self-hosted runner!
+          # ~/.cache/pip đã tự động persist trên đĩa local giữa các lần chạy.
+          # Dùng GitHub remote cache sẽ download 4+ GB mỗi lần → chậm hơn nhiều.
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-test.txt
 
       - name: Run tests
         run: pytest tests/ -v --tb=short
