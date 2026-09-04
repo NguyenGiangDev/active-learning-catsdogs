@@ -183,4 +183,4 @@ jobs:
       - name: Restart containers với image mới
         # --no-build: không build lại, dùng image vừa pull
         # --force-recreate: đảm bảo container dùng image mới nhất
-        run: docker compose up -d --no-build --force-recreate api
+        run: docker compose up -d --no-build --force-recreate
