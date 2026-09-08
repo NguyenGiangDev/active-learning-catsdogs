@@ -98,6 +98,11 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/catdog-classifier:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/catdog-classifier:${{ github.sha }}
+          # Lưu cache layer vào Docker Hub → truy cập được từ mọi CI runner
+          # Migrate sang S3: đổi 2 dòng dưới thành type=s3,bucket=...,region=...
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/catdog-classifier:cache
+          cache-to:   type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/catdog-classifier:cache,mode=max
+
       - name: Build and push label-web image
         uses: docker/build-push-action@v5
         with:
@@ -106,21 +111,6 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/label-web:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/label-web:${{ github.sha }}
-          # ── Docker build cache ──────────────────────────────────────────
-          # Lưu cache layer vào Docker Hub dưới dạng image riêng
-          # (username/catdog-classifier:cache)
-          #
-          # Ưu điểm:
-          #   - Bao giờ CI nào có Docker credentials cũng truy cập được
-          #   - Không bị lock-in vào GitHub Actions Cache (giới hạn 10GB)
-          #
-          # Migrate sang S3 sau này: chỉ cần đổi 2 dòng dưới thành:
-          #   cache-from: type=s3,bucket=my-bucket,region=ap-southeast-1,prefix=buildcache/
-          #   cache-to:   type=s3,bucket=my-bucket,region=ap-southeast-1,prefix=buildcache/,mode=max
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/catdog-classifier:cache
-          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/catdog-classifier:cache,mode=max
-         
-  # ── Docker build cache cho label-web ──────────────────────────────
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/label-web:cache
           cache-to:   type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/label-web:cache,mode=max
   # ─────────────────────────────────────────────────────────────────
