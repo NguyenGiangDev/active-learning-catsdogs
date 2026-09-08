@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Label Web — Active Learning Labeling UI</title>
+  <meta name="description" content="Giao diện gán nhãn ảnh cho pipeline Active Learning MLOps — Cats vs Dogs Classifier" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* ── CSS Reset & Variables ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary:    #0d0f14;
+      --bg-secondary:  #13161e;
+      --bg-card:       #1a1d27;
+      --bg-glass:      rgba(255,255,255,0.04);
+      --border:        rgba(255,255,255,0.08);
+      --border-hover:  rgba(255,255,255,0.15);
+
+      --text-primary:  #f0f2ff;
+      --text-secondary:#8b91a8;
+      --text-muted:    #4f5569;
+
+      --accent-blue:   #4f8ef7;
+      --accent-purple: #9b72f7;
+      --accent-cat:    #f97316;
+      --accent-dog:    #22d3ee;
+      --accent-skip:   #6b7280;
+      --accent-green:  #10b981;
+      --accent-red:    #ef4444;
+
+      --radius-sm:  8px;
+      --radius-md:  14px;
+      --radius-lg:  20px;
+      --radius-xl:  28px;
+
+      --shadow-glow-blue:   0 0 40px rgba(79,142,247,0.2);
+      --shadow-glow-purple: 0 0 40px rgba(155,114,247,0.2);
+      --shadow-card:        0 8px 32px rgba(0,0,0,0.4);
+      --shadow-btn:         0 4px 20px rgba(0,0,0,0.3);
+
+      --transition: 200ms cubic-bezier(0.4,0,0.2,1);
+      --transition-slow: 400ms cubic-bezier(0.4,0,0.2,1);
+    }
+
+    html, body {
+      min-height: 100vh;
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      overflow-x: hidden;
+    }
+
+    /* ── Animated background ─────────────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% -10%, rgba(79,142,247,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 110%, rgba(155,114,247,0.07) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Layout ──────────────────────────────────────────────────────────── */
+    .app {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ──────────────────────────────────────────────────────────── */
+    header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(13,15,20,0.8);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 20px rgba(79,142,247,0.3);
+    }
+
+    .app-title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .app-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    /* ── Progress bar ────────────────────────────────────────────────────── */
+    .progress-section {
+      flex: 1;
+      min-width: 0;
+      max-width: 500px;
+    }
+
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      gap: 8px;
+    }
+
+    .progress-text {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .retrain-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 100px;
+      background: rgba(16,185,129,0.15);
+      color: var(--accent-green);
+      border: 1px solid rgba(16,185,129,0.3);
+      white-space: nowrap;
+      transition: var(--transition);
+    }
+
+    .retrain-badge.warning {
+      background: rgba(249,115,22,0.15);
+      color: var(--accent-cat);
+      border-color: rgba(249,115,22,0.3);
+    }
+
+    .progress-bar-track {
+      width: 100%;
+      height: 6px;
+      background: var(--bg-glass);
+      border-radius: 100px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+      border-radius: 100px;
+      transition: width var(--transition-slow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      animation: shimmer 2s infinite;
+    }
+
+    @keyframes shimmer {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(200%); }
+    }
+
+    /* ── Stats chips ─────────────────────────────────────────────────────── */
+    .stats-row {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .stat-chip {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 14px;
+      background: var(--bg-glass);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      min-width: 64px;
+    }
+
+    .stat-chip-value {
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .stat-chip-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-chip:nth-child(1) .stat-chip-value { color: var(--accent-blue); }
+    .stat-chip:nth-child(2) .stat-chip-value { color: var(--accent-green); }
+    .stat-chip:nth-child(3) .stat-chip-value { color: var(--accent-purple); }
+
+    /* ── Main content ────────────────────────────────────────────────────── */
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+
+    /* ── Loading State ────────────────────────────────────────────────────── */
+    #loading-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent-blue);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ── Empty State ─────────────────────────────────────────────────────── */
+    #empty-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      text-align: center;
+      max-width: 400px;
+    }
+
+    .empty-icon {
+      font-size: 72px;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-12px); }
+    }
+
+    .empty-title {
+      font-size: 24px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent-green), var(--accent-blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .empty-desc {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* ── Label Card ──────────────────────────────────────────────────────── */
+    #label-card {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 680px;
+    }
+
+    /* ── Image container ─────────────────────────────────────────────────── */
+    .image-container {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+      position: relative;
+      transition: var(--transition);
+    }
+
+    .image-container:hover {
+      border-color: var(--border-hover);
+      box-shadow: var(--shadow-card), var(--shadow-glow-blue);
+    }
+
+    .image-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .image-filename {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: 'Courier New', monospace;
+    }
+
+    .confidence-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .confidence-badge.low {
+      background: rgba(239,68,68,0.15);
+      color: var(--accent-red);
+      border: 1px solid rgba(239,68,68,0.3);
+    }
+
+    .confidence-badge.medium {
+      background: rgba(249,115,22,0.15);
+      color: var(--accent-cat);
+      border: 1px solid rgba(249,115,22,0.3);
+    }
+
+    .predicted-tag {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--bg-glass);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .image-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0a0c11;
+      min-height: 320px;
+      max-height: 480px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #current-image {
+      max-width: 100%;
+      max-height: 480px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    #current-image.loading {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+
+    .image-counter {
+      padding: 10px 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .counter-text {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .nav-dots {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .nav-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--border-hover);
+      transition: var(--transition);
+    }
+
+    .nav-dot.active {
+      background: var(--accent-blue);
+      width: 16px;
+      border-radius: 3px;
+    }
+
+    /* ── Label Buttons ───────────────────────────────────────────────────── */
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .btn-label {
+      flex: 1;
+      padding: 16px 20px;
+      border: none;
+      border-radius: var(--radius-lg);
+      font-family: inherit;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+      letter-spacing: 0.2px;
+    }
+
+    .btn-label::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0);
+      transition: var(--transition);
+    }
+
+    .btn-label:hover::before { background: rgba(255,255,255,0.08); }
+    .btn-label:active        { transform: scale(0.97); }
+
+    .btn-label:focus-visible {
+      outline: 2px solid var(--accent-blue);
+      outline-offset: 3px;
+    }
+
+    .btn-cat {
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      color: white;
+      box-shadow: 0 4px 24px rgba(249,115,22,0.35);
+    }
+
+    .btn-cat:hover {
+      box-shadow: 0 6px 32px rgba(249,115,22,0.5);
+      transform: translateY(-2px);
+    }
+
+    .btn-dog {
+      background: linear-gradient(135deg, #22d3ee, #0891b2);
+      color: white;
+      box-shadow: 0 4px 24px rgba(34,211,238,0.3);
+    }
+
+    .btn-dog:hover {
+      box-shadow: 0 6px 32px rgba(34,211,238,0.45);
+      transform: translateY(-2px);
+    }
+
+    .btn-emoji {
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .btn-text {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .btn-main-text { font-size: 17px; font-weight: 700; }
+    .btn-sub-text  { font-size: 11px; font-weight: 500; opacity: 0.7; margin-top: 1px; }
+
+    .btn-skip {
+      flex: none;
+      padding: 16px 20px;
+      background: var(--bg-glass);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: var(--transition);
+      min-width: 80px;
+    }
+
+    .btn-skip:hover {
+      border-color: var(--border-hover);
+      color: var(--text-primary);
+      background: rgba(255,255,255,0.06);
+    }
+
+    .btn-skip:active { transform: scale(0.97); }
+
+    .btn-skip-key {
+      font-size: 10px;
+      color: var(--text-muted);
+      padding: 1px 5px;
+      background: var(--bg-glass);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: monospace;
+    }
+
+    /* ── Keyboard shortcuts hint ─────────────────────────────────────────── */
+    .shortcuts-hint {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .shortcut-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .key-badge {
+      font-family: monospace;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 7px;
+      background: var(--bg-glass);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text-secondary);
+    }
+
+    /* ── Toast notifications ─────────────────────────────────────────────── */
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .toast {
+      padding: 12px 18px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      backdrop-filter: blur(20px);
+      animation: slideInUp 0.3s ease forwards;
+      border: 1px solid;
+      max-width: 320px;
+    }
+
+    .toast.success {
+      background: rgba(16,185,129,0.15);
+      border-color: rgba(16,185,129,0.3);
+      color: #6ee7b7;
+    }
+
+    .toast.info {
+      background: rgba(79,142,247,0.15);
+      border-color: rgba(79,142,247,0.3);
+      color: #93c5fd;
+    }
+
+    .toast.warning {
+      background: rgba(249,115,22,0.15);
+      border-color: rgba(249,115,22,0.3);
+      color: #fdba74;
+    }
+
+    .toast.retrain {
+      background: rgba(155,114,247,0.15);
+      border-color: rgba(155,114,247,0.3);
+      color: #c4b5fd;
+    }
+
+    @keyframes slideInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .toast.fade-out {
+      animation: fadeOut 0.3s ease forwards;
+    }
+
+    @keyframes fadeOut {
+      to { opacity: 0; transform: translateY(10px); }
+    }
+
+    /* ── Retrain trigger banner ───────────────────────────────────────────── */
+    #retrain-banner {
+      display: none;
+      position: fixed;
+      top: 72px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 200;
+      background: linear-gradient(135deg, rgba(155,114,247,0.2), rgba(79,142,247,0.2));
+      border: 1px solid rgba(155,114,247,0.5);
+      backdrop-filter: blur(20px);
+      border-radius: var(--radius-lg);
+      padding: 14px 24px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 8px 32px rgba(155,114,247,0.2);
+      animation: dropDown 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;
+    }
+
+    @keyframes dropDown {
+      from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+
+    .retrain-banner-icon { font-size: 24px; }
+    .retrain-banner-text { font-size: 14px; font-weight: 600; color: #c4b5fd; }
+    .retrain-banner-sub  { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+    /* ── Responsive ──────────────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .stats-row   { display: none; }
+      .btn-row     { flex-direction: column; }
+      .btn-skip    { flex-direction: row; }
+      header       { flex-wrap: wrap; }
+      .progress-section { order: 3; width: 100%; flex: none; }
+    }
+
+    /* ── Transition animations ───────────────────────────────────────────── */
+    .card-enter {
+      animation: cardEnter 0.35s cubic-bezier(0.34,1.3,0.64,1) forwards;
+    }
+
+    @keyframes cardEnter {
+      from { opacity: 0; transform: scale(0.96) translateY(12px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .card-exit {
+      animation: cardExit 0.2s ease forwards;
+    }
+
+    @keyframes cardExit {
+      to { opacity: 0; transform: scale(0.96) translateY(-8px); }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header>
+    <div class="header-left">
+      <div class="logo">🏷️</div>
+      <div>
+        <div class="app-title">Label Web</div>
+        <div class="app-subtitle">Active Learning — Cats vs Dogs</div>
+      </div>
+    </div>
+
+    <div class="progress-section">
+      <div class="progress-meta">
+        <span class="progress-text" id="progress-text">Đang tải...</span>
+        <span class="retrain-badge" id="retrain-badge">—</span>
+      </div>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progress-fill" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-chip">
+        <span class="stat-chip-value" id="stat-pending">—</span>
+        <span class="stat-chip-label">Chờ</span>
+      </div>
+      <div class="stat-chip">
+        <span class="stat-chip-value" id="stat-labeled">—</span>
+        <span class="stat-chip-label">Đã label</span>
+      </div>
+      <div class="stat-chip">
+        <span class="stat-chip-value" id="stat-threshold">—</span>
+        <span class="stat-chip-label">Ngưỡng</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Retrain Banner ─────────────────────────────────────────────────── -->
+  <div id="retrain-banner">
+    <div class="retrain-banner-icon">🚀</div>
+    <div>
+      <div class="retrain-banner-text">Retrain đã được trigger!</div>
+      <div class="retrain-banner-sub">GitHub Actions đang xử lý job retrain model...</div>
+    </div>
+  </div>
+
+  <!-- ── Main ───────────────────────────────────────────────────────────── -->
+  <main>
+
+    <!-- Loading -->
+    <div id="loading-screen">
+      <div class="spinner"></div>
+      <span style="color: var(--text-secondary); font-size: 14px;">Đang tải danh sách ảnh...</span>
+    </div>
+
+    <!-- Empty -->
+    <div id="empty-screen">
+      <div class="empty-icon">✅</div>
+      <div class="empty-title">Tất cả đã được gán nhãn!</div>
+      <p class="empty-desc">
+        Không còn ảnh nào chờ gán nhãn.<br/>
+        Khi model phân loại ảnh mới với độ tin cậy thấp, chúng sẽ xuất hiện ở đây.
+      </p>
+    </div>
+
+    <!-- Label Card -->
+    <div id="label-card">
+      <div class="image-container" id="image-container">
+        <div class="image-header">
+          <span class="image-filename" id="img-filename">loading...</span>
+          <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+            <span class="predicted-tag" id="predicted-tag">🤖 Chưa dự đoán</span>
+            <span class="confidence-badge" id="conf-badge">0%</span>
+          </div>
+        </div>
+        <div class="image-wrapper">
+          <img id="current-image" alt="Ảnh cần gán nhãn" class="loading" />
+        </div>
+        <div class="image-counter">
+          <span class="counter-text" id="counter-text">Ảnh 1 / 1</span>
+          <div class="nav-dots" id="nav-dots"></div>
+        </div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="btn-row">
+        <button class="btn-label btn-cat" id="btn-cat" onclick="submitLabel('Cat')">
+          <span class="btn-emoji">🐱</span>
+          <div class="btn-text">
+            <span class="btn-main-text">Cat / Mèo</span>
+            <span class="btn-sub-text">Nhấn phím C</span>
+          </div>
+        </button>
+
+        <button class="btn-label btn-dog" id="btn-dog" onclick="submitLabel('Dog')">
+          <div class="btn-text" style="align-items:flex-end;">
+            <span class="btn-main-text">Dog / Chó</span>
+            <span class="btn-sub-text">Nhấn phím D</span>
+          </div>
+          <span class="btn-emoji">🐶</span>
+        </button>
+
+        <button class="btn-skip" id="btn-skip" onclick="skipImage()">
+          <span style="font-size:18px;">⏭</span>
+          <span style="font-size:12px;">Skip</span>
+          <span class="btn-skip-key">S</span>
+        </button>
+      </div>
+
+      <!-- Shortcuts hint -->
+      <div class="shortcuts-hint">
+        <div class="shortcut-item">
+          <span class="key-badge">C</span>
+          <span>Gán nhãn Cat</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="key-badge">D</span>
+          <span>Gán nhãn Dog</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="key-badge">S</span>
+          <span>Bỏ qua</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="key-badge">←</span>
+          <span class="key-badge">→</span>
+          <span>Điều hướng</span>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════════════════════════
+const state = {
+  images: [],
+  currentIndex: 0,
+  stats: { pending: 0, labeled: 0, retrain_threshold: 10, next_trigger_in: 10 },
+  isSubmitting: false,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DOM refs
+// ═══════════════════════════════════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+const loadingScreen  = $('loading-screen');
+const emptyScreen    = $('empty-screen');
+const labelCard      = $('label-card');
+const currentImage   = $('current-image');
+const imgFilename    = $('img-filename');
+const predictedTag   = $('predicted-tag');
+const confBadge      = $('conf-badge');
+const counterText    = $('counter-text');
+const navDots        = $('nav-dots');
+const progressFill   = $('progress-fill');
+const progressText   = $('progress-text');
+const retrainBadge   = $('retrain-badge');
+const statPending    = $('stat-pending');
+const statLabeled    = $('stat-labeled');
+const statThreshold  = $('stat-threshold');
+const retrainBanner  = $('retrain-banner');
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// API helpers
+// ═══════════════════════════════════════════════════════════════════════════════
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || res.statusText);
+  }
+  return res.json();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Toast
+// ═══════════════════════════════════════════════════════════════════════════════
+function showToast(message, type = 'info', duration = 3000) {
+  const container = $('toast-container');
+  const icons = { success: '✅', info: 'ℹ️', warning: '⚠️', retrain: '🚀' };
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${message}</span>`;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add('fade-out');
+    setTimeout(() => toast.remove(), 350);
+  }, duration);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Update UI
+// ═══════════════════════════════════════════════════════════════════════════════
+function updateStats(stats) {
+  state.stats = stats;
+  const { pending, labeled, retrain_threshold, next_trigger_in } = stats;
+
+  statPending.textContent   = pending;
+  statLabeled.textContent   = labeled;
+  statThreshold.textContent = retrain_threshold;
+
+  const total = pending + labeled;
+  const pct = total > 0 ? Math.round((labeled / total) * 100) : 0;
+  progressFill.style.width = pct + '%';
+  progressText.textContent = `${labeled} đã label / ${total} tổng (${pct}%)`;
+
+  if (next_trigger_in === 0) {
+    retrainBadge.textContent = '✅ Đã trigger retrain';
+    retrainBadge.className = 'retrain-badge';
+  } else {
+    retrainBadge.textContent = `🎯 Còn ${next_trigger_in} để retrain`;
+    retrainBadge.className = 'retrain-badge' + (next_trigger_in <= 3 ? ' warning' : '');
+  }
+}
+
+function renderNavDots() {
+  navDots.innerHTML = '';
+  const maxDots = Math.min(state.images.length, 7);
+  for (let i = 0; i < maxDots; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'nav-dot' + (i === state.currentIndex ? ' active' : '');
+    navDots.appendChild(dot);
+  }
+}
+
+function showScreen(name) {
+  loadingScreen.style.display = name === 'loading' ? 'flex' : 'none';
+  emptyScreen.style.display   = name === 'empty'   ? 'flex' : 'none';
+  labelCard.style.display     = name === 'label'   ? 'flex' : 'none';
+}
+
+function loadCurrentImage() {
+  const img = state.images[state.currentIndex];
+  if (!img) { showScreen('empty'); return; }
+
+  showScreen('label');
+
+  // Confidence badge
+  const confPct = Math.round(img.confidence * 100);
+  confBadge.textContent = `${confPct}%`;
+  confBadge.className   = 'confidence-badge ' + (confPct < 60 ? 'low' : 'medium');
+
+  // Predicted tag
+  const predEmoji = img.predicted_label === 'Cat' ? '🐱' : img.predicted_label === 'Dog' ? '🐶' : '🤖';
+  predictedTag.textContent = `${predEmoji} ${img.predicted_label}`;
+
+  // Filename
+  imgFilename.textContent = img.original_filename || img.id;
+
+  // Counter
+  counterText.textContent = `Ảnh ${state.currentIndex + 1} / ${state.images.length}`;
+
+  // Nav dots
+  renderNavDots();
+
+  // Load image
+  currentImage.classList.add('loading');
+  const newSrc = `/api/image/${img.id}?t=${Date.now()}`;
+  currentImage.onload  = () => { currentImage.classList.remove('loading'); };
+  currentImage.onerror = () => {
+    currentImage.classList.remove('loading');
+    showToast('Không tải được ảnh', 'warning');
+  };
+  currentImage.src = newSrc;
+  currentImage.alt = `Ảnh ${img.original_filename || img.id} — Dự đoán: ${img.predicted_label}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Data fetching
+// ═══════════════════════════════════════════════════════════════════════════════
+async function loadImages() {
+  try {
+    const [{ images }, stats] = await Promise.all([
+      api('/api/images'),
+      api('/api/stats'),
+    ]);
+
+    state.images = images;
+    state.currentIndex = 0;
+    updateStats(stats);
+
+    if (images.length === 0) {
+      showScreen('empty');
+    } else {
+      loadCurrentImage();
+    }
+  } catch (err) {
+    showToast(`Lỗi tải dữ liệu: ${err.message}`, 'warning');
+    showScreen('empty');
+  }
+}
+
+async function refreshStats() {
+  try {
+    const stats = await api('/api/stats');
+    updateStats(stats);
+  } catch { /* ignore */ }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Actions
+// ═══════════════════════════════════════════════════════════════════════════════
+async function submitLabel(label) {
+  if (state.isSubmitting || state.images.length === 0) return;
+  state.isSubmitting = true;
+
+  const img = state.images[state.currentIndex];
+  const btnId = label === 'Cat' ? 'btn-cat' : 'btn-dog';
+  const btn = $(btnId);
+  btn.style.opacity = '0.6';
+  btn.style.transform = 'scale(0.95)';
+
+  try {
+    const result = await api('/api/label', {
+      method: 'POST',
+      body: JSON.stringify({ id: img.id, label }),
+    });
+
+    const emoji = label === 'Cat' ? '🐱' : '🐶';
+    showToast(`${emoji} Đã gán nhãn "${label}"`, 'success');
+
+    // Kiểm tra nếu trigger retrain
+    if (result.labeled % state.stats.retrain_threshold === 0 && result.labeled > 0) {
+      showRetrainBanner();
+    }
+
+    // Xóa ảnh đã label khỏi danh sách local
+    state.images.splice(state.currentIndex, 1);
+
+    // Điều chỉnh index
+    if (state.currentIndex >= state.images.length) {
+      state.currentIndex = Math.max(0, state.images.length - 1);
+    }
+
+    await refreshStats();
+
+    if (state.images.length === 0) {
+      showScreen('empty');
+    } else {
+      loadCurrentImage();
+    }
+  } catch (err) {
+    showToast(`Lỗi: ${err.message}`, 'warning');
+  } finally {
+    btn.style.opacity = '';
+    btn.style.transform = '';
+    state.isSubmitting = false;
+  }
+}
+
+async function skipImage() {
+  if (state.isSubmitting || state.images.length === 0) return;
+
+  const img = state.images[state.currentIndex];
+  try {
+    await api('/api/skip', { method: 'POST', body: JSON.stringify({ id: img.id }) });
+    showToast('⏭ Đã bỏ qua ảnh này', 'info', 1500);
+  } catch { /* ignore */ }
+
+  // Chuyển sang ảnh kế tiếp (xoay vòng)
+  state.currentIndex = (state.currentIndex + 1) % state.images.length;
+  loadCurrentImage();
+}
+
+function navigatePrev() {
+  if (state.images.length === 0) return;
+  state.currentIndex = (state.currentIndex - 1 + state.images.length) % state.images.length;
+  loadCurrentImage();
+}
+
+function navigateNext() {
+  if (state.images.length === 0) return;
+  state.currentIndex = (state.currentIndex + 1) % state.images.length;
+  loadCurrentImage();
+}
+
+function showRetrainBanner() {
+  retrainBanner.style.display = 'flex';
+  showToast('🚀 Đã đạt ngưỡng! Retrain job đang được trigger...', 'retrain', 6000);
+  setTimeout(() => {
+    retrainBanner.style.display = 'none';
+  }, 8000);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Keyboard shortcuts
+// ═══════════════════════════════════════════════════════════════════════════════
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+  switch (e.key.toLowerCase()) {
+    case 'c': e.preventDefault(); submitLabel('Cat');  break;
+    case 'd': e.preventDefault(); submitLabel('Dog');  break;
+    case 's': e.preventDefault(); skipImage();         break;
+    case 'arrowleft':  e.preventDefault(); navigatePrev(); break;
+    case 'arrowright': e.preventDefault(); navigateNext(); break;
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════════════════════════════
+showScreen('loading');
+loadImages();
+
+// Auto-refresh stats mỗi 30 giây
+setInterval(async () => {
+  if (state.images.length > 0) await refreshStats();
+}, 30_000);
+</script>
+</body>
+</html>

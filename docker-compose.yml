@@ -1,16 +1,19 @@
 # docker-compose.yml
-# Hai service: FastAPI classifier + Label Studio để gán nhãn ảnh bất định.
+# Hai service: FastAPI classifier + Label Web UI để gán nhãn ảnh bất định.
 #
 # Cách dùng:
-#   docker compose pull && docker compose up -d
-#   - API:          http://localhost:8000
-#   - Label Studio: http://localhost:8080
+#   docker compose up -d
+#   - API:       http://localhost:8000
+#   - Label Web: http://localhost:4000
 #
-# Lưu ý: service api dùng image từ Docker Hub (nguyengiangdevops/catdog-classifier:latest)
-# CI/CD sẽ tự push image mới sau mỗi lần build thành công.
+# Lưu ý: label-web mount ./data vào /app/data để đọc ảnh từ low_confidence/
+#         và lưu kết quả vào labeled/ & retrain_trigger/.
 #
-# Lưu ý: Cả hai service đều mount ./data vào container,
-# nên Label Studio có thể đọc ảnh từ data/low_confidence/.
+# Retrain trigger:
+#   Khi đủ RETRAIN_THRESHOLD ảnh được gán nhãn, label-web sẽ:
+#   1. Tạo file data/retrain_trigger/trigger_{timestamp}.json
+#   2. Gọi GitHub API repository_dispatch event "retrain-requested"
+#      (cần cấu hình GITHUB_TOKEN, GITHUB_REPO_OWNER, GITHUB_REPO_NAME)
 
 services:
   api:
@@ -27,24 +30,27 @@ services:
       - LOW_CONFIDENCE_DIR=/app/data/low_confidence
       - CONFIDENCE_THRESHOLD=0.80
     restart: unless-stopped
-    depends_on: []   # label-studio không phải dependency cứng của API
 
-  label-studio:
-    image: heartexlabs/label-studio:latest
-    container_name: catdog-label-studio
+  label-web:
+    image: nguyengiangdevops/label-web:latest
+    container_name: label-web
     ports:
-      - "8080:8080"
+      - "4000:4000"
     volumes:
-      # Chia sẻ thư mục data với service api
-      - ./data:/label-studio/data
-      # Persist Label Studio database & cấu hình giữa các lần restart
-      - label-studio-db:/label-studio/db
+      # Mount toàn bộ data: đọc low_confidence, ghi labeled & retrain_trigger
+      - ./data:/app/data
     environment:
-      # Tắt auth khi chạy local (tiện cho demo cá nhân)
-      # Bật lại bằng cách bỏ dòng này khi deploy lên server thật
-      - LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true
-      - LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=/label-studio/data
+      - PORT=4000
+      - LOW_CONFIDENCE_DIR=/app/data/low_confidence
+      - LABELED_DIR=/app/data/labeled
+      - RETRAIN_TRIGGER_DIR=/app/data/retrain_trigger
+      - RAW_DATA_DIR=/app/data/raw
+      # Số ảnh label tối thiểu để trigger retrain
+      - RETRAIN_THRESHOLD=10
+      # GitHub dispatch để trigger CI/CD retrain job tự động
+      # Thêm vào file .env hoặc docker secrets khi deploy thật:
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITHUB_REPO_OWNER=${GITHUB_REPO_OWNER:-}
+      - GITHUB_REPO_NAME=${GITHUB_REPO_NAME:-}
     restart: unless-stopped
-
-volumes:
-  label-studio-db:
+    depends_on: []

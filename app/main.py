@@ -2,14 +2,12 @@
 app/main.py
 FastAPI app — endpoint /predict phân loại ảnh Chó/Mèo với Active Learning loop.
 
-Khi model bất định (confidence ≤ threshold), ảnh + metadata JSON được lưu
-vào data/low_confidence/ để con người gán nhãn lại qua Label Studio.
+Khi model bất định (confidence ≤ threshold), ảnh được lưu vào
+data/low_confidence/ để con người gán nhãn lại qua Label Studio.
 """
 
-import json
 import os
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -19,7 +17,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.filter import is_uncertain
 from app.model import predict
 from app.validate import ImageValidationError, validate_image
-
 # ── Hằng số cấu hình ─────────────────────────────────────────────────────────
 LOW_CONFIDENCE_DIR: str = os.getenv("LOW_CONFIDENCE_DIR", "data/low_confidence")
 CONFIDENCE_THRESHOLD: float = float(os.getenv("CONFIDENCE_THRESHOLD", "0.80"))
@@ -84,7 +81,7 @@ async def predict_endpoint(file: UploadFile = File(...)) -> JSONResponse:
     saved_for_review = False
 
     if uncertain:
-        saved_for_review = _save_for_review(data, file.filename or "upload.jpg", label, confidence)
+        saved_for_review = _save_for_review(data, file.filename or "upload.jpg")
 
     return JSONResponse(
         {
@@ -99,33 +96,16 @@ async def predict_endpoint(file: UploadFile = File(...)) -> JSONResponse:
 def _save_for_review(
     data: bytes,
     original_filename: str,
-    predicted_label: str,
-    confidence: float,
 ) -> bool:
     """
-    Lưu ảnh + metadata JSON vào LOW_CONFIDENCE_DIR.
+    Lưu ảnh vào LOW_CONFIDENCE_DIR để gán nhãn qua Label Studio.
     Trả về True nếu lưu thành công, False nếu có lỗi.
     """
     try:
         file_id = uuid.uuid4().hex
         ext = Path(original_filename).suffix.lower() or ".jpg"
-        base_path = Path(LOW_CONFIDENCE_DIR) / file_id
-
-        # Lưu ảnh
-        img_path = base_path.with_suffix(ext)
+        img_path = Path(LOW_CONFIDENCE_DIR) / f"{file_id}{ext}"
         img_path.write_bytes(data)
-
-        # Lưu metadata
-        meta = {
-            "id": file_id,
-            "original_filename": original_filename,
-            "predicted_label": predicted_label,
-            "confidence": round(confidence, 6),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        meta_path = base_path.with_suffix(".json")
-        meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2))
-
         return True
     except Exception as exc:  # noqa: BLE001
         # Không raise — predict vẫn trả kết quả dù lưu file thất bại
