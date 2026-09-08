@@ -43,13 +43,18 @@ jobs:
       github.event.inputs.retrain_only != 'true'
 
     steps:
-      - uses: actions/checkout@v4
+      # Fix: Docker container có thể tạo file/dir owned bởi root
+      # → chown lại workspace trước khi checkout để tránh EACCES error
+      - name: Fix workspace permissions
+        run: sudo chown -R "$USER:$USER" "$GITHUB_WORKSPACE" || true
+
+      - uses: actions/checkout@v5
 
       - name: Setup data directories
         run: mkdir -p data/low_confidence
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           # Không dùng cache: "pip" trên self-hosted runner!
@@ -76,7 +81,7 @@ jobs:
       github.event.inputs.retrain_only != 'true'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -139,7 +144,7 @@ jobs:
       github.event_name == 'repository_dispatch'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Log retrain trigger info
         run: |
@@ -154,7 +159,7 @@ jobs:
           echo "══════════════════════════════════════════════"
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -196,7 +201,11 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-      - uses: actions/checkout@v4
+      # Fix: tương tự job test, chown lại workspace trước checkout
+      - name: Fix workspace permissions
+        run: sudo chown -R "$USER:$USER" "$GITHUB_WORKSPACE" || true
+
+      - uses: actions/checkout@v5
 
       - name: Pull image catdog-classifier
         # Retry 3 lần để xử lý lỗi mạng tạm thời (TLS timeout, IPv6 fallback)
