@@ -36,8 +36,11 @@ const GITHUB_TOKEN       = process.env.GITHUB_TOKEN || '';
 const GITHUB_REPO_OWNER  = process.env.GITHUB_REPO_OWNER || '';
 const GITHUB_REPO_NAME   = process.env.GITHUB_REPO_NAME  || '';
 
+// ── Thư mục lưu trữ các đợt label đã trigger ────────────────────────────────
+const LABELED_ARCHIVE_DIR = process.env.LABELED_ARCHIVE_DIR || path.join(path.dirname(LABELED_DIR), 'labeled_archive');
+
 // ── Khởi tạo thư mục ──────────────────────────────────────────────────────────
-[LOW_CONFIDENCE_DIR, LABELED_DIR, TRIGGER_DIR,
+[LOW_CONFIDENCE_DIR, LABELED_DIR, TRIGGER_DIR, LABELED_ARCHIVE_DIR,
   path.join(RAW_DATA_DIR, 'Cat'),
   path.join(RAW_DATA_DIR, 'Dog'),
 ].forEach(dir => {
@@ -139,6 +142,27 @@ function triggerGitHubRetrain(labeledCount) {
   req.end();
 }
 
+// ── Helper: archive và reset thư mục labeled/ sau khi trigger ────────────────
+function resetLabeledDir(timestamp) {
+  try {
+    const archiveSlot = path.join(LABELED_ARCHIVE_DIR, `batch_${timestamp}`);
+    fs.mkdirSync(archiveSlot, { recursive: true });
+
+    const files = fs.readdirSync(LABELED_DIR);
+    files.forEach(f => {
+      fs.renameSync(
+        path.join(LABELED_DIR, f),
+        path.join(archiveSlot, f)
+      );
+    });
+
+    console.log(`[server] 📦 Đã archive ${files.length} file label vào: ${archiveSlot}`);
+    console.log('[server] 🔄 Counter reset — sẵn sàng đợt gán nhãn tiếp theo.');
+  } catch (err) {
+    console.error('[server] Lỗi khi reset labeled dir:', err.message);
+  }
+}
+
 // ── Helper: kiểm tra và trigger retrain khi đủ ngưỡng ────────────────────────
 function checkAndTriggerRetrain() {
   const labeled = countLabeled();
@@ -162,6 +186,9 @@ function checkAndTriggerRetrain() {
 
     // Gọi GitHub dispatch để trigger CI/CD retrain job
     triggerGitHubRetrain(labeled);
+
+    // Reset counter: archive labeled/ → bắt đầu đếm lại từ 0
+    resetLabeledDir(timestamp);
   }
 }
 

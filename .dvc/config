@@ -1,4 +1,7 @@
 [core]
-    remote = localremote
+    remote = s3remote
 ['remote "localremote"']
     url = ../../catdog-dvc-storage
+['remote "s3remote"']
+    url = s3://catdog-bucket-project/dvc-storage/
+    profile = dvc-personal

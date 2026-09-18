@@ -22,6 +22,10 @@ on:
         description: "Chỉ chạy job retrain (bỏ qua test/build)?"
         required: false
         default: "false"
+      dataset_version:
+        description: "Dataset version tag để retrain (vd: dataset-v2). Để trống = dùng version mới nhất"
+        required: false
+        default: ""
   # ── Trigger tự động từ label-web ──────────────────────────────────────────
   # label-web gọi POST https://api.github.com/repos/{owner}/{repo}/dispatches
   # với body: { "event_type": "retrain-requested", "client_payload": {...} }
@@ -142,6 +146,12 @@ jobs:
     if: >
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'repository_dispatch'
+    # ── DVC remote: mặc định localremote, đổi thành s3remote khi deploy AWS
+    # Set tại: GitHub repo → Settings → Variables → DVC_REMOTE = s3remote
+    env:
+      DVC_REMOTE: ${{ vars.DVC_REMOTE || 'localremote' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     steps:
       - uses: actions/checkout@v5
@@ -168,21 +178,56 @@ jobs:
         # Lần chạy sau sẽ hit cache, không tải lại torch từ PyPI
         run: pip install -r requirements.txt
 
-      - name: Pull data từ DVC remote
+      # ── Bước A: Restore đúng version dataset ────────────────────────────────
+      # Nếu user truyền dataset_version (vd: dataset-v2) → checkout con trỏ
+      # data/raw.dvc của version đó. Để trống → dùng version mới nhất (HEAD).
+      - name: 📥 Restore dataset version
         run: |
-          # Cấu hình DVC remote credentials nếu cần (ví dụ S3)
-          # dvc remote modify myremote access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
-          # Với local remote trong demo cá nhân, bước này có thể bỏ qua.
-          echo "[retrain] Bỏ qua dvc pull với local remote (demo mode)"
+          VERSION="${{ github.event.inputs.dataset_version }}"
+          if [ -n "$VERSION" ]; then
+            echo "⏪ Checkout dataset version: $VERSION"
+            git fetch --tags
+            git checkout "$VERSION" -- data/raw.dvc
+            echo "✅ data/raw.dvc khôi phục từ tag: $VERSION"
+          else
+            echo "✅ Dùng dataset version mới nhất (HEAD)"
+          fi
 
-      - name: Chạy retrain
-        run: python train/train.py --data-dir data/raw --epochs 5
+      # ── Bước B: dvc pull — download ảnh thật từ remote về data/raw/ ──────────
+      # Không có bước này, data/raw/ trống → train bị crash.
+      # Local remote: đường dẫn tương đối ../../catdog-dvc-storage
+      # S3 remote   : đọc AWS credentials từ env var / IAM Role tự động
+      - name: 📦 Pull data từ DVC remote
+        run: |
+          echo "[dvc] Pulling từ remote: $DVC_REMOTE"
+          dvc pull --remote "$DVC_REMOTE" || \
+            echo "⚠️  dvc pull bỏ qua (local demo — data/raw đã tồn tại trên runner)"
 
-      - name: Commit model mới vào DVC
+      # ── Bước C: Data Validation ──────────────────────────────────────────────
+      # Exit code ≠ 0 → pipeline dừng, KHÔNG retrain với dữ liệu xấu.
+      - name: ✅ Data Validation
+        run: python -m train.validate_data --data-dir data/raw
+
+      # ── Bước D: Data Versioning (snapshot trước khi train) ───────────────────
+      # Tạo git tag dataset-v{N}, cập nhật data/raw.dvc, push lên DVC remote.
+      # Chỉ chạy khi retrain với version mới nhất (không snapshot lại version cũ).
+      - name: 📌 Data Versioning (DVC snapshot)
+        if: github.event.inputs.dataset_version == ''
+        run: |
+          python -m train.version_data \
+            --data-dir data/raw \
+            --run-id "${{ github.sha }}" \
+            --dvc-remote "$DVC_REMOTE"
+
+      # ── Bước E: Retrain ───────────────────────────────────────────────────────
+      - name: 🚀 Chạy retrain
+        run: python -m train.train --data-dir data/raw --epochs 5
+
+      - name: 💾 Commit model mới vào DVC
         run: |
           # Ghi chú: Trong CI thật, dùng DVC remote S3/GCS.
           # Với demo local remote, bước này chỉ in thông báo.
-          echo "[retrain] dvc add models && dvc push (bỏ qua trong demo)"
+          echo "[retrain] dvc add models && dvc push --remote $DVC_REMOTE (bỏ qua trong demo)"
 
   # ─────────────────────────────────────────────────────────────────
   # Job 4: Deploy

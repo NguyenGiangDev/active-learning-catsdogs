@@ -39,6 +39,9 @@ services:
     volumes:
       # Mount toàn bộ data: đọc low_confidence, ghi labeled & retrain_trigger
       - ./data:/app/data
+    # Chạy as root để tránh mọi EACCES với bind mount trên local/self-hosted.
+    # (Trên ECS/EKS production dùng IAM Role + EFS Access Point thay thế)
+    user: "root"
     environment:
       - PORT=4000
       - LOW_CONFIDENCE_DIR=/app/data/low_confidence
